@@ -151,3 +151,9 @@ textarea.fi{height:auto;min-height:3.4286rem;padding:0.5714rem 0;font-size:1.071
 .fl .ms.bad{position:static;background:none;padding:0;margin-top:0.2143rem;pointer-events:auto}
 
 body.kb .foot{display:none}
+
+/* 기본정보(4단계) 전용 */
+.flds{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;justify-content:space-evenly;padding-bottom:0.4286rem}
+.f4 .fl{margin-bottom:0.5rem}
+.f4 .fl label{font-size:0.9643rem;color:#6b6b6b;font-weight:700}
+.f4 .fl label .lh{font-size:0.8571rem;color:#b4b4b4;font-weight:500}

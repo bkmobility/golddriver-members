@@ -317,14 +317,14 @@
     S.devEdit = false;
     var regs = ['수도권', '충청권', '호남권', '경상권', '강원권', '제주권'];
     var d = S.d;
-    var html = stepScr(4, totalSteps(), hh('기본 정보를 알려주세요') +
+    var html = stepScr(4, totalSteps(), hh('기본 정보를 알려주세요') + '<div class="flds f4">' +
       '<div class="fl"><label>이름</label><input class="fi" id="name" type="text" maxlength="30" placeholder="이름을 입력해주세요" value="' + esc(d.name) + '" autocomplete="name"></div>' +
-      '<div class="fl"><label>생년월일 (6자리) · 만 ' + C.AGE_MIN + '~' + C.AGE_MAX + '세 가입 가능</label><input class="fi" id="birth" type="tel" inputmode="numeric" maxlength="6" placeholder="예: 900315" value="' + esc(d.birth) + '"><div id="birthmsg"></div></div>' +
+      '<div class="fl"><label>생년월일 (6자리)<span class="lh"> · 만 ' + C.AGE_MIN + '~' + C.AGE_MAX + '세 가입 가능</span></label><input class="fi" id="birth" type="tel" inputmode="numeric" maxlength="6" placeholder="예: 900315" value="' + esc(d.birth) + '"><div id="birthmsg"></div></div>' +
       '<div class="fl"><label>휴대폰 번호</label><input class="fi" id="phone" type="tel" inputmode="numeric" maxlength="13" placeholder="010-0000-0000" value="' + esc(d.phone) + '"><div id="phonemsg"></div></div>' +
       '<div class="fl"><label>휴대폰 기종</label><div class="dev" id="devbox">' + devHtml() + '</div></div>' +
       '<div class="fl"><label>사용하는 통신사 선택</label><div class="cbs g3">' + [['SKT', 'SK'], ['KT', 'KT'], ['LGU', 'U+'], ['SKT_MVNO', 'SK알뜰폰'], ['KT_MVNO', 'KT알뜰폰'], ['LGU_MVNO', 'U+알뜰폰']].map(function (c) { return '<button class="cb' + (d.carrier === c[0] ? ' on' : '') + '" data-cr="' + c[0] + '"><i>✓</i>' + c[1] + '</button>'; }).join('') + '</div></div>' +
       '<div class="fl"><label>휴대폰 명의 선택</label><div class="cbs">' + [['self', '본인 명의'], ['other', '타인 명의']].map(function (c) { return '<button class="cb' + (d.phone_owner === c[0] ? ' on' : '') + '" data-ow="' + c[0] + '"><i>✓</i>' + c[1] + '</button>'; }).join('') + '</div></div>' +
-      '<div class="fl"><label>거주 지역</label><div class="chips g3" style="margin-top:6px">' + regs.map(function (r) { return '<button class="chip' + (d.region === r ? ' on' : '') + '" data-r="' + r + '">' + r + '</button>'; }).join('') + '</div></div>',
+      '<div class="fl"><label>거주 지역</label><div class="chips g3" style="margin-top:6px">' + regs.map(function (r) { return '<button class="chip' + (d.region === r ? ' on' : '') + '" data-r="' + r + '">' + r + '</button>'; }).join('') + '</div></div></div>',
       cta('다음', 'next', true));
     return { html: html, bind: function () {
       bindDev(); loadDeviceAsync();
