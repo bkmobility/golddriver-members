@@ -1,7 +1,7 @@
 (function () {
   'use strict';
   var C = window.GD_CONFIG, LG = window.GD_LEGAL;
-  var VERSION = '1.2.0';
+  var VERSION = '1.3.0';
   var DRAFT_KEY = 'gd_draft_v2';
   var $app = document.getElementById('app');
   var $toast = document.getElementById('toast');
@@ -95,7 +95,29 @@
   }
   function deviceModel() {
     var m = /Android[^;]*;\s*([^;)]+?)(?:\sBuild|\)|;)/.exec(navigator.userAgent || '');
-    return m ? m[1].trim() : '';
+    var v = m ? m[1].trim() : '';
+    return (v === 'K' || /^(Android|Linux|wv)$/i.test(v)) ? '' : v;
+  }
+  function loadDeviceAsync() {
+    try {
+      if (S.d.device || !(navigator.userAgentData && navigator.userAgentData.getHighEntropyValues)) return;
+      navigator.userAgentData.getHighEntropyValues(['model']).then(function (r) {
+        if (r && r.model && !S.d.device) { S.d.device = r.model; save(); var el = $('#devbox'); if (el) { el.innerHTML = devHtml(); bindDev(); } }
+      }).catch(function () {});
+    } catch (e) {}
+  }
+  function devHtml() {
+    var d = S.d.device;
+    if (S.devEdit || !d) return '<input id="devin" type="text" maxlength="40" placeholder="예: SM-F966N" value="' + esc(d) + '">';
+    return '<b>' + esc(d) + '</b><em>(자동 확인)</em><button id="devchg">바꾸기</button>';
+  }
+  function bindDev() {
+    var ch = $('#devchg'), inp = $('#devin');
+    if (ch) ch.addEventListener('click', function () { S.devEdit = true; var el = $('#devbox'); el.innerHTML = devHtml(); bindDev(); $('#devin').focus(); });
+    if (inp) {
+      inp.addEventListener('input', function () { S.d.device = this.value; save(); });
+      inp.addEventListener('blur', function () { S.d.device = this.value.trim(); if (!S.d.device) { S.d.device = deviceModel(); S.devEdit = false; var el = $('#devbox'); if (el) { el.innerHTML = devHtml(); bindDev(); } } save(); });
+    }
   }
   function won(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '원'; }
   function totalApps() { var a = S.d.apps; return a.logi + a.callmaner + a.aicon; }
@@ -219,12 +241,28 @@
     } catch (e) {}
     shareFallback(text);
   }
-  function shareFallback(text) {
-    if (navigator.share) { navigator.share({ text: text }).catch(function () {}); return; }
+  function copyText(text, done) {
     try {
-      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(function () { toast('추천 문구와 주소가 복사되었어요'); }, function () { openExternal('sms:?body=' + encodeURIComponent(text)); }); return; }
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(done, function () { legacyCopy(text, done); }); return; }
     } catch (e) {}
-    openExternal('sms:?body=' + encodeURIComponent(text));
+    legacyCopy(text, done);
+  }
+  function legacyCopy(text, done) {
+    try {
+      var t = document.createElement('textarea'); t.value = text; t.setAttribute('readonly', ''); t.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+      document.body.appendChild(t); t.select(); t.setSelectionRange(0, 99999); document.execCommand('copy'); document.body.removeChild(t); done();
+    } catch (e) { toast('복사하지 못했어요. 직접 주소를 공유해 주세요'); }
+  }
+  function shareFallback(text) {
+    var ua = navigator.userAgent || '', inKakao = /KAKAOTALK/i.test(ua);
+    if (!inKakao && navigator.share) { navigator.share({ text: text }).catch(function () {}); return; }
+    var btns = [
+      { label: '링크 복사', fn: function () { copyText(text, function () { toast('추천 문구와 주소가 복사되었어요'); }); } },
+      { label: '문자로 보내기', cls: 'cta sec', fn: function () { openExternal('sms:?body=' + encodeURIComponent(text)); } }
+    ];
+    if (inKakao) btns.splice(1, 0, { label: '다른 앱으로 공유 (기본 브라우저에서 열기)', cls: 'cta sec', fn: function () { openExternal('kakaotalk://web/openExternal?url=' + encodeURIComponent(location.href.split('#')[0])); } });
+    btns.push({ label: '닫기', cls: 'cta sec' });
+    modal('<h3>추천하기</h3><div class="mb">' + (inKakao ? '카카오톡 안에서는 공유창이 열리지 않아요.<br>링크를 복사해 붙여넣거나, 기본 브라우저에서 열어 공유해 주세요.' : '아래 방법으로 추천해 주세요.') + '</div>', btns);
   }
 
   SCREENS.landing = function () {
@@ -276,25 +314,28 @@
 
   SCREENS.s4 = function () {
     if (!S.d.device) S.d.device = deviceModel();
+    S.devEdit = false;
     var regs = ['수도권', '충청권', '호남권', '경상권', '강원권', '제주권'];
     var d = S.d;
     var html = stepScr(4, totalSteps(), hh('기본 정보를 알려주세요') +
       '<div class="fl"><label>이름</label><input class="fi" id="name" type="text" maxlength="30" placeholder="이름을 입력해주세요" value="' + esc(d.name) + '" autocomplete="name"></div>' +
       '<div class="fl"><label>생년월일 (6자리) · 만 ' + C.AGE_MIN + '~' + C.AGE_MAX + '세 가입 가능</label><input class="fi" id="birth" type="tel" inputmode="numeric" maxlength="6" placeholder="예: 900315" value="' + esc(d.birth) + '"><div id="birthmsg"></div></div>' +
       '<div class="fl"><label>휴대폰 번호</label><input class="fi" id="phone" type="tel" inputmode="numeric" maxlength="13" placeholder="010-0000-0000" value="' + esc(d.phone) + '"><div id="phonemsg"></div></div>' +
+      '<div class="fl"><label>휴대폰 기종</label><div class="dev" id="devbox">' + devHtml() + '</div></div>' +
       '<div class="fl"><label>사용하는 통신사 선택</label><div class="cbs g3">' + [['SKT', 'SK'], ['KT', 'KT'], ['LGU', 'U+'], ['SKT_MVNO', 'SK알뜰폰'], ['KT_MVNO', 'KT알뜰폰'], ['LGU_MVNO', 'U+알뜰폰']].map(function (c) { return '<button class="cb' + (d.carrier === c[0] ? ' on' : '') + '" data-cr="' + c[0] + '"><i>✓</i>' + c[1] + '</button>'; }).join('') + '</div></div>' +
       '<div class="fl"><label>휴대폰 명의 선택</label><div class="cbs">' + [['self', '본인 명의'], ['other', '타인 명의']].map(function (c) { return '<button class="cb' + (d.phone_owner === c[0] ? ' on' : '') + '" data-ow="' + c[0] + '"><i>✓</i>' + c[1] + '</button>'; }).join('') + '</div></div>' +
       '<div class="fl"><label>거주 지역</label><div class="chips g3" style="margin-top:6px">' + regs.map(function (r) { return '<button class="chip' + (d.region === r ? ' on' : '') + '" data-r="' + r + '">' + r + '</button>'; }).join('') + '</div></div>',
       cta('다음', 'next', true));
     return { html: html, bind: function () {
+      bindDev(); loadDeviceAsync();
       function check() {
         var b = parseBirth($('#birth').value), okName = $('#name').value.trim().length > 0, ph = digits($('#phone').value);
         var bm = $('#birthmsg'), pm = $('#phonemsg'), okB = false, okP = /^01[016789]\d{7,8}$/.test(ph);
         if ($('#birth').value.length === 0) bm.innerHTML = '';
         else if (!b) bm.innerHTML = '<div class="ms bad">생년월일 6자리를 확인해 주세요</div>';
         else if (b.age < C.AGE_MIN || b.age > C.AGE_MAX) bm.innerHTML = '<div class="ms bad">' + b.y + '년 ' + b.m + '월 ' + b.d + '일 (만 ' + b.age + '세) · 가입이 어려워요</div>';
-        else { okB = true; bm.innerHTML = '<div class="ms">' + b.y + '년 ' + b.m + '월 ' + b.d + '일 · 만 ' + b.age + '세 가입 가능</div>'; }
-        if (!ph) pm.innerHTML = ''; else if (okP) pm.innerHTML = '<div class="ms">확인되었어요</div>'; else pm.innerHTML = '<div class="ms bad">휴대폰 번호를 확인해 주세요</div>';
+        else { okB = true; bm.innerHTML = '<div class="ms">✓ 만 ' + b.age + '세</div>'; }
+        if (!ph) pm.innerHTML = ''; else if (okP) pm.innerHTML = '<div class="ms">✓ 확인되었어요</div>'; else pm.innerHTML = '<div class="ms bad">휴대폰 번호를 확인해 주세요</div>';
         $('#birth').classList.toggle('ok', okB); $('#phone').classList.toggle('ok', okP); $('#name').classList.toggle('ok', okName);
         $('#next').disabled = !(okName && okB && okP && S.d.region && S.d.carrier && S.d.phone_owner);
       }
@@ -545,7 +586,18 @@
     if (!$modal.hidden) { closeModal(); return; }
     goBack();
   }
+  var fitMax = 0, fitW = 0;
+  function fitRoot() {
+    var ae = document.activeElement, kb = ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName), w = window.innerWidth, h = window.innerHeight;
+    if (w !== fitW) { fitW = w; fitMax = 0; }
+    if (!kb || h > fitMax) fitMax = h;
+    var fs = Math.min(Math.min(w, 420) / 24.3, fitMax / 54);
+    document.documentElement.style.fontSize = fs.toFixed(3) + 'px';
+    document.body.classList.toggle('kb', !!(kb && h < fitMax - 120));
+  }
   function start() {
+    fitRoot(); window.addEventListener('resize', fitRoot); window.addEventListener('orientationchange', function () { setTimeout(fitRoot, 200); });
+    document.addEventListener('focusout', function () { setTimeout(fitRoot, 350); });
     try {
       history.replaceState({ gd: 0 }, '');
       history.pushState({ gd: 1 }, '');
