@@ -1,7 +1,7 @@
 (function () {
   'use strict';
   var C = window.GD_CONFIG, LG = window.GD_LEGAL;
-  var VERSION = '1.5.0';
+  var VERSION = '2.7.0';
   var DRAFT_KEY = 'gd_draft_v2';
   var $app = document.getElementById('app');
   var $toast = document.getElementById('toast');
