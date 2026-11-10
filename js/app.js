@@ -1,12 +1,12 @@
 (function () {
   'use strict';
   var C = window.GD_CONFIG, LG = window.GD_LEGAL;
-  var VERSION = '1.3.0';
+  var VERSION = '1.5.0';
   var DRAFT_KEY = 'gd_draft_v2';
   var $app = document.getElementById('app');
   var $toast = document.getElementById('toast');
   var $modal = document.getElementById('modal');
-  var licBlob = null, licUrl = '';
+  var licBlob = null, licUrl = '', selfBlob = null, selfUrl = '';
   var busy = false;
 
   /* ---------- 아이콘 ---------- */
@@ -45,12 +45,12 @@
         work_type: '', work_mode: '', used_apps: [], name: '', birth: '', phone: '', region: '', device: '', carrier: '', phone_owner: '',
         insurance: '', signup_type: '', apps: { logi: 0, callmaner: 0, aicon: 0 }, question: '', call_time: '',
         referrer: '', refOpen: false, c: { privacy: false, terms: false, third: false, marketing: false },
-        sub: null, licOk: false, kind: ''
+        sub: null, licOk: false, selfOk: false, kind: ''
       }
     };
   }
   var S = fresh();
-  var FUNNEL = ['s1', 's2', 's3', 's4', 's5', 's6', 'A7', 'A8', 'A9', 'B7', 'B8', 'C7'];
+  var FUNNEL = ['s1', 's2', 's3', 's4', 's5', 's6', 'A7', 'A8', 'A9', 'A10', 'B7', 'B8', 'C7'];
   function save() {
     try {
       if (FUNNEL.indexOf(S.screen) >= 0) localStorage.setItem(DRAFT_KEY, JSON.stringify(S));
@@ -156,8 +156,8 @@
       });
     });
   }
-  function uploadLicense(id, blob) {
-    var path = id + '/' + Date.now() + '.jpg';
+  function uploadLicense(id, blob, tag) {
+    var path = id + '/' + (tag || '') + Date.now() + '.jpg';
     return timeoutFetch(C.SUPABASE_URL + '/storage/v1/object/golddriver-licenses/' + path, {
       method: 'POST', headers: headers({ 'Content-Type': 'image/jpeg', 'x-upsert': 'false' }), body: blob
     }, 60000).then(function (r) {
@@ -450,14 +450,12 @@
     var d = S.d, tot = totalApps();
     var licOn = !!licBlob || d.licOk;
     var box = licUrl ? '<img id="licimg" alt="" src="' + licUrl + '">' : (d.licOk ? ico('check', 34, 1.8) + '운전면허증이 제출되었어요' : ico('cam', 34, 1.5) + '운전면허증 사진을 올려주세요');
-    var html = stepScr(9, 9, hh('운전면허증을 올려주세요', '전체가 보이게 · 글자가 또렷하게 · 빛 반사 없이') +
+    var html = stepScr(9, 10, hh('운전면허증을 올려주세요', '전체가 보이게 · 글자가 또렷하게 · 빛 반사 없이') +
       '<div class="up' + (licUrl ? ' has' : '') + '">' + box + '</div>' +
       '<div class="two"><button class="pri" id="cam">' + (licOn ? '다시 촬영' : '촬영하기') + '</button><button class="sec" id="gal">앨범에서 선택</button></div>' +
       '<input type="file" id="f-cam" accept="image/*" capture="environment" hidden><input type="file" id="f-gal" accept="image/*" hidden>' +
-      '<div class="sum" style="margin-top:16px"><span>첫 달 예상 금액</span><b>' + won(tot * C.APP_PRICE) + '</b></div><div class="red">건당 보험 및 월보험 가입 여부에 따라 금액은 변경됩니다</div>' +
-      '<div class="ms hint" style="margin-top:8px">이용 앱 ' + esc(appSummary()) + ' · 결제 및 최종 금액은 문자 또는 전화로 안내해 드려요</div>' +
       '<button class="lnk" id="tochat">상담부터 받고 싶어요</button>',
-      cta('첫 달 결제 안내 받기', 'pay', !licOn) + '<button class="ghost" id="later">운전면허증은 나중에 넣을게요</button>');
+      cta('다음', 'pay', !licOn) + '<button class="ghost" id="later">운전면허증은 나중에 넣을게요</button>');
     return { html: html, bind: function () {
       function pick(f) {
         var file = f.files && f.files[0]; if (!file) return;
@@ -469,11 +467,49 @@
       on('#cam', function () { $('#f-cam').click(); }); on('#gal', function () { $('#f-gal').click(); });
       $('#f-cam').addEventListener('change', function () { pick(this); }); $('#f-gal').addEventListener('change', function () { pick(this); });
       on('#tochat', function () { go('C7'); });
-      on('#pay', function () { finishA9(true); });
+      on('#pay', function () { if (licOn) go('A10'); });
       on('#later', function () { finishA9(false); });
       on('#back', goBack);
     } };
   };
+  SCREENS.A10 = function () {
+    var tot = totalApps(), has = !!selfBlob || !!S.d.selfOk;
+    var guide = '<svg width="120" height="78" viewBox="0 0 120 78" fill="none" stroke="#9b9b9b" stroke-width="1.8" stroke-linecap="round"><circle cx="40" cy="22" r="13"/><path d="M14 74c0-16 11-24 26-24s26 8 26 24"/><rect x="70" y="36" width="42" height="28" rx="4" transform="rotate(-8 91 50)"/><circle cx="82" cy="47" r="4" transform="rotate(-8 91 50)"/><path d="M90 45h14M90 52h10" transform="rotate(-8 91 50)"/></svg>';
+    var box = selfUrl ? '<img id="selfimg" alt="" src="' + selfUrl + '">' : (S.d.selfOk ? ico('check', 34, 1.8) + '본인 사진이 제출되었어요' : guide + '얼굴과 운전면허증이 함께 나오게 찍어주세요');
+    var html = stepScr(10, 10, hh('운전면허증 들고 셀프 사진', '얼굴과 운전면허증이 한 화면에 · 정면 · 밝은 곳 · 본인 확인용') +
+      '<div class="up' + (selfUrl ? ' has' : '') + '">' + box + '</div>' +
+      '<div class="two"><button class="pri" id="scam">' + (has ? '다시 촬영' : '셀프 촬영') + '</button><button class="sec" id="sgal">앨범에서 선택</button></div>' +
+      '<input type="file" id="s-cam" accept="image/*" capture="user" hidden><input type="file" id="s-gal" accept="image/*" hidden>' +
+      '<div class="sum" style="margin-top:16px"><span>첫 달 예상 금액</span><b>' + won(tot * C.APP_PRICE) + '</b></div><div class="red">건당 보험 및 월보험 가입 여부에 따라 금액은 변경됩니다</div>' +
+      '<div class="ms hint" style="margin-top:8px">이용 앱 ' + esc(appSummary()) + ' · 결제 및 최종 금액은 문자 또는 전화로 안내해 드려요</div>',
+      cta('첫 달 결제 안내 받기', 'pay', !has) + '<button class="ghost" id="later">본인 사진은 나중에 넣을게요</button>');
+    return { html: html, bind: function () {
+      function pick(f) {
+        var file = f.files && f.files[0]; if (!file) return;
+        compress(file).then(function (b) {
+          selfBlob = b; if (selfUrl) URL.revokeObjectURL(selfUrl); selfUrl = URL.createObjectURL(b); render();
+        }, function () { toast('사진을 불러오지 못했어요. 다시 시도해 주세요.'); });
+        f.value = '';
+      }
+      on('#scam', function () { $('#s-cam').click(); }); on('#sgal', function () { $('#s-gal').click(); });
+      $('#s-cam').addEventListener('change', function () { pick(this); }); $('#s-gal').addEventListener('change', function () { pick(this); });
+      on('#pay', function () { finishA10(true); });
+      on('#later', function () { finishA10(false); });
+      on('#back', goBack);
+    } };
+  };
+  function finishA10(withPay) {
+    if (busy) return;
+    var s = S.d.sub, btn = withPay ? $('#pay') : $('#later'), label = btn.textContent;
+    if (withPay && !selfBlob && !S.d.selfOk) return;
+    setBusy(btn, '처리 중...');
+    var chain = Promise.resolve();
+    if (licBlob) chain = chain.then(function () { return uploadLicense(s.id, licBlob); }).then(function (path) { return rpc('golddriver_attach_license', { p_id: s.id, p_token: s.token, p_path: path }); }).then(function () { S.d.licOk = true; licBlob = null; });
+    if (selfBlob) chain = chain.then(function () { return uploadLicense(s.id, selfBlob, 's'); }).then(function (path) { return rpc('golddriver_attach_selfie', { p_id: s.id, p_token: s.token, p_path: path }); }).then(function () { S.d.selfOk = true; selfBlob = null; }).catch(function () { selfBlob = null; toast('본인 사진은 올리지 못했어요. 상담원이 따로 안내드려요.'); });
+    if (withPay) chain = chain.then(function () { return rpc('golddriver_request_payment', { p_id: s.id, p_token: s.token }).catch(function (e) { if (String(e.message) !== 'not_found') throw e; }); });
+    chain.then(function () { busy = false; S.hist = ['home']; go(withPay ? 'Pdone' : 'Sdone', true); },
+      function (e) { busy = false; btn.disabled = false; btn.textContent = label; modal('<h3>처리하지 못했어요</h3><div class="mb">' + esc(errText(e)) + '</div>', [{ label: '확인' }]); });
+  }
   function appSummary() {
     var a = S.d.apps, o = [];
     if (a.logi) o.push('로지 ' + a.logi); if (a.callmaner) o.push('콜마너 ' + a.callmaner); if (a.aicon) o.push('아이콘 ' + a.aicon);
@@ -484,6 +520,7 @@
     var d = S.d, sub = d.sub || {};
     var cfg = {
       pay: ['신청이 완료됐어요', '운전면허증 확인 후 결제 안내 문자를 보내드려요', [['상담원 연락', '입력하신 내용을 확인해요'], ['운전면허증 확인 · 결제 안내', '문자 또는 전화로 안내해 드려요'], ['기사 등록 · 보험 접수', '가입 완료']]],
+      selflater: ['신청이 접수됐어요', '본인 사진 제출 방법은 문자 또는 전화로 안내해 드려요', [['상담원 연락', '입력하신 내용을 확인해요'], ['본인 사진 제출 · 결제 안내', '문자 또는 전화로 안내해 드려요'], ['기사 등록 · 보험 접수', '가입 완료']]],
       later: ['신청이 접수됐어요', '운전면허증 제출 방법은 문자 또는 전화로 안내해 드려요', [['상담원 연락', '입력하신 내용을 확인해요'], ['운전면허증 제출 · 결제 안내', '문자 또는 전화로 안내해 드려요'], ['기사 등록 · 보험 접수', '가입 완료']]],
       consult: ['상담 신청이 완료됐어요', (d.call_time ? slotLabel(d.call_time) + '에<br>' : '') + '상담원이 전화드립니다', [['상담원 전화', '맞춤 보험료를 안내해요'], ['가입 결정 · 운전면허증 제출', '충분히 들어보고 결정하세요'], ['가입 완료', '기사 등록 · 보험 접수']]]
     }[kind] || ['', '', []];
@@ -499,6 +536,7 @@
   function slotLabel(v) { for (var i = 0; i < SLOTS.length; i++) if (SLOTS[i][1] === v) return SLOTS[i][0]; return v || ''; }
   SCREENS.Pdone = function () { return doneScreen('pay'); };
   SCREENS.Ldone = function () { return doneScreen('later'); };
+  SCREENS.Sdone = function () { return doneScreen('selflater'); };
   SCREENS.Cdone = function () { return doneScreen('consult'); };
 
   /* ---------- 동작 ---------- */
@@ -514,7 +552,7 @@
   }
   function exitApp() { if (navigator.app && navigator.app.exitApp) navigator.app.exitApp(); }
   function exitConfirm(msg, fn) { modal('<h3>' + esc(msg) + '</h3>', [{ label: '취소', cls: 'cta sec', fn: null }, { label: '확인', fn: fn }]); }
-  function toHome() { S = fresh(); licBlob = null; licUrl = ''; clearDraft(); render(); }
+  function toHome() { S = fresh(); licBlob = null; licUrl = ''; selfBlob = null; selfUrl = ''; clearDraft(); render(); }
 
   function render() {
     var sc = SCREENS[S.screen] ? S.screen : 'home';
