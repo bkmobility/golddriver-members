@@ -1,7 +1,7 @@
 (function () {
   'use strict';
   var C = window.GD_CONFIG, LG = window.GD_LEGAL;
-  var VERSION = '2.9.0';
+  var VERSION = '3.0.0';
   var DRAFT_KEY = 'gd_draft_v2';
   var $app = document.getElementById('app');
   var $toast = document.getElementById('toast');
@@ -144,10 +144,10 @@
     consent_required: '필수 약관에 동의해 주세요.', too_many: '짧은 시간에 너무 많이 신청했어요. 잠시 후 다시 시도해 주세요.',
     invalid_apps: '선택한 앱을 다시 확인해 주세요.', not_found: '이미 처리된 신청이에요. 상담원에게 문의해 주세요.', invalid_path: '파일 정보가 올바르지 않아요.'
   };
-  /* v2.9: 번호 패턴 검사 — 2 = 확실한 가짜(막음), 1 = 애매(안내만) */
+  /* v3.0: 번호 패턴 검사 — 1 = 연속·반복 번호 (막지 않고 경고창만) */
   function phoneKind(ph) {
     var t = String(ph || '').slice(-8); if (t.length < 8) return 0;
-    if (/^(\d)\1{7}$/.test(t) || '01234567890123456789'.indexOf(t) >= 0 || '98765432109876543210'.indexOf(t) >= 0) return 2;
+    if (/^(\d)\1{7}$/.test(t) || '01234567890123456789'.indexOf(t) >= 0 || '98765432109876543210'.indexOf(t) >= 0) return 1;
     if (t.slice(0, 4) === t.slice(4) || /^(\d\d)\1{3}$/.test(t)) return 1;
     return 0;
   }
@@ -338,19 +338,15 @@
       var dupMap = {}, dupBusy = {};
       function check() {
         var b = parseBirth($('#birth').value), okName = $('#name').value.trim().length > 0, ph = digits($('#phone').value);
-        var bm = $('#birthmsg'), pm = $('#phonemsg'), okB = false, okP = /^01[016789]\d{7,8}$/.test(ph), sus = okP ? phoneKind(ph) : 0;
-        if (sus === 2) okP = false;
+        var bm = $('#birthmsg'), pm = $('#phonemsg'), okB = false, okP = /^01[016789]\d{7,8}$/.test(ph);
         if ($('#birth').value.length === 0) bm.innerHTML = '';
         else if (!b) bm.innerHTML = '<div class="ms bad">생년월일 6자리를 확인해 주세요</div>';
         else if (b.age < C.AGE_MIN || b.age > C.AGE_MAX) bm.innerHTML = '<div class="ms bad">' + b.y + '년 ' + b.m + '월 ' + b.d + '일 (만 ' + b.age + '세) · 가입이 어려워요</div>';
         else { okB = true; bm.innerHTML = '<div class="ms">✓ 만 ' + b.age + '세</div>'; }
         if (!ph) pm.innerHTML = '';
-        else if (sus === 2) pm.innerHTML = '<div class="ms bad">연속·반복 숫자 번호는 사용할 수 없어요. 실제로 연락 가능한 휴대폰 번호를 입력해 주세요.</div>';
-        else if (okP && dupMap[ph]) pm.innerHTML = '<div class="ms hint">ℹ 이미 접수된 번호예요. 이어서 신청해도 되지만 본인 번호가 맞는지 확인해 주세요. 문의 📞 1599-5779</div>';
-        else if (okP && sus === 1) pm.innerHTML = '<div class="ms hint">⚠ 같은 숫자가 반복되는 번호예요. 맞는 번호인지 한 번 더 확인해 주세요.</div>';
         else if (okP) { pm.innerHTML = '<div class="ms">✓ 확인되었어요</div>'; }
         else pm.innerHTML = '<div class="ms bad">휴대폰 번호를 확인해 주세요</div>';
-        if (okP && dupMap[ph] === undefined && !dupBusy[ph]) { dupBusy[ph] = 1; rpc('golddriver_phone_exists', { p_phone: ph }).then(function (r) { dupMap[ph] = r === true; delete dupBusy[ph]; if (digits($('#phone') && $('#phone').value) === ph) check(); }, function () { dupMap[ph] = false; delete dupBusy[ph]; }); }
+        if (okP && dupMap[ph] === undefined && !dupBusy[ph]) { dupBusy[ph] = 1; rpc('golddriver_phone_exists', { p_phone: ph }).then(function (r) { dupMap[ph] = r === true; delete dupBusy[ph]; }, function () { dupMap[ph] = false; delete dupBusy[ph]; }); }
         $('#birth').classList.toggle('ok', okB); $('#phone').classList.toggle('ok', okP); $('#name').classList.toggle('ok', okName);
         $('#next').disabled = !(okName && okB && okP && S.d.region && S.d.carrier && S.d.phone_owner);
       }
@@ -360,7 +356,16 @@
       $$('[data-r]').forEach(function (b) { b.addEventListener('click', function () { S.d.region = b.getAttribute('data-r'); $$('[data-r]').forEach(function (x) { x.classList.toggle('on', x === b); }); save(); check(); }); });
       $$('[data-cr]').forEach(function (b) { b.addEventListener('click', function () { S.d.carrier = b.getAttribute('data-cr'); $$('[data-cr]').forEach(function (x) { x.classList.toggle('on', x === b); }); save(); check(); }); });
       $$('[data-ow]').forEach(function (b) { b.addEventListener('click', function () { S.d.phone_owner = b.getAttribute('data-ow'); $$('[data-ow]').forEach(function (x) { x.classList.toggle('on', x === b); }); save(); check(); }); });
-      on('#next', function () { go('s5'); }); on('#back', goBack);
+      on('#next', function () {
+        var ph = digits($('#phone').value);
+        function go5() { go('s5'); }
+        function ask() {
+          var fake = phoneKind(ph) === 1, dup = dupMap[ph] === true;
+          if (!fake && !dup) { go5(); return; }
+          modal('<h3>' + (dup ? '이미 접수된 번호예요' : '번호를 확인해 주세요') + '</h3><p style="line-height:1.55"><b>' + esc(fmtPhone(ph)) + '</b><br>' + (dup ? '이미 접수된 번호예요. 본인 번호가 맞나요?' : '연속·반복 숫자 번호예요. 본인 번호가 맞나요?') + '</p><p style="font-size:.9rem;color:#64748b;line-height:1.5">상담원이 이 번호로 연락드려요.<br>계속 진행하시겠습니까?<br>📞 문의 1599-5779</p>', [{ label: '번호 다시 확인', cls: 'cta sec', fn: function () { var el = $('#phone'); if (el) el.focus(); } }, { label: '계속 진행', fn: go5 }]);
+        }
+        if (dupMap[ph] === undefined) { rpc('golddriver_phone_exists', { p_phone: ph }).then(function (r) { dupMap[ph] = r === true; ask(); }, function () { dupMap[ph] = false; ask(); }); } else ask();
+      }); on('#back', goBack);
       check();
     } };
   };
